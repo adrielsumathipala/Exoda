@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+body {
+  font: 12px sans-serif;
+}
+
+.xaxis text {
+  font: 12px sans-serif;
+  font-weight: bold;
+}
+
+.title {
+  font: 25px sans-serif;
+}
+
+.subtitle {
+  font:12px sans-serif;
+  font-style: italic;
+}
+
+.xaxis path {
+  display: none;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.bar:hover {
+  fill: orangered ;
+}
+
+
+.d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 2px;
+}
+
+/* Creates a small triangle extender for the tooltip */
+.d3-tip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.8);
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+}
+
+/* Style northward tooltips differently */
+.d3-tip.n:after {
+  margin: -1px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+<script>
+// Used Justin Palmer's d3 visualization (http://bl.ocks.org/Caged/6476579)
+// as starter code
+var margin = {top: 140, right: 20, bottom: 30, left: 60},
+    width = 960 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
+
+
+var x = d3.scale.ordinal()
+    .rangeRoundBands([0, width], .1);
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+
+var format = d3.format(".3s")
+
+var axisMargin = 15;
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left")
+    .ticks(10)
+    .tickFormat(format);
+
+var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-10, 0])
+  .html(function(d) {
+    return "<strong>Number of Refugees:</strong> <span style='color:red'>" + format(d.refugees) + "</span>";
+  })
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+
+svg.append("text")
+  .attr("x", 300)
+  .attr("y", 75)
+  .attr("class", "title")
+  .text("The Top 10 Countries by Total Refugee Immigration");
+  
+svg.append("text")
+  .attr("x", 450)
+  .attr("y", 100)
+  .attr("class", "subtitle")
+  .text("From 1980 - 2017 (Data Source: UNHCR)");
+
+  svg = svg.append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+svg.call(tip);
+
+d3.csv("most_refugees.csv", function(error, data) {
+  console.log(data);
+  x.domain(data.map(function(d) { return d.asylum; }));
+  y.domain([0, d3.max(data, function(d) { return d.refugees; })]);
+  var colorScale = d3.scale.linear()
+                      .domain([0, data.length -1])
+                      .range(["#ACB6E5", "#74ebd5"]);
+
+  svg.append("g")
+      .attr("class", "xaxis")
+      .attr("transform", "translate(" + axisMargin + "," + height + ")")
+      .call(xAxis);
+
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Number of Refugees");
+
+  var totalTime = 2000;
+  svg.selectAll(".bar")
+      .data(data)
+    .enter().append("rect")
+      .on('mouseover', tip.show)
+      .on('mouseout', tip.hide)
+      .attr("x", -200)
+      .attr("y", height/2)
+      .attr("fill", function(d, i) {return colorScale(i);})
+      .transition()
+      .duration(totalTime)
+      .delay(function(d, i) {
+        return parseInt((data.length - i) * totalTime/data.length);
+      })
+      .attr("x", function(d) { return axisMargin + x(d.asylum); })
+      .attr("width", x.rangeBand())
+      .attr("y", function(d) { return y(d.refugees); })
+      .attr("height", function(d) { return height - y(d.refugees); })
+
+});
+
+</script>

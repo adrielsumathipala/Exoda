@@ -1,0 +1,208 @@
+<!-- Run Python Server: python -m SimpleHTTPServer 8888 &. -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<body>
+<script src="https://d3js.org/d3.v4.min.js" charset="utf-8"></script>
+<!-- <canvas width="960" height="960"></canvas> -->
+<style type="text/css">
+  .nodes {
+    opacity: 0.8;
+  }
+  .label {
+    font-family: Arial;
+    font-size: 30px;
+    font-weight: bold;
+  }
+  .axis {
+    font-weight: bold;
+  }
+</style>
+<script>
+var width = 1000;
+var height = 300;
+
+var svg = d3.select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+// var dataset;
+
+// var canvas = document.querySelector("canvas")
+// var context = canvas.getContext("2d")
+//   width = canvas.width,
+//   height = canvas.height,
+//   tau = 2 * Math.PI;  
+
+
+d3.csv("usa.csv", function(dataset) {
+  console.log(dataset);
+  var minRefugee = d3.min(dataset, function(d) {
+    return d.refugees;
+  });
+  var maxRefugee = d3.max(dataset, function(d) {
+    return d.refugees;
+  });
+
+  var minRad = 5;
+  var maxRad = 15;
+  var padding = 40;
+
+  var refugeeScale = d3.scaleSqrt()
+                        .domain([minRefugee, maxRefugee])
+                        .range([minRad, maxRad]);
+
+  var nodeList = [];
+
+  var nodeGroup = svg.append("g")
+                      .attr();
+                      // .attr("class", "nodes");
+
+  function ticked() {
+  node.attr("cx", function(d) { return d.x; })
+      .attr("cy", function(d) { return d.y; })
+  };
+
+  var minYear = d3.min(dataset, function(d) {
+    return d.year;
+  });
+  var maxYear = d3.max(dataset, function(d) {
+    return d.year;
+  });
+
+  var timeScale = d3.scaleLinear()
+                    .domain([minYear, maxYear])
+                    .range([padding, (width - padding)]);
+
+  var timeAxis = d3.axisBottom()
+                    .scale(timeScale)
+                    .ticks(dataset.length)
+                    .tickFormat(d3.format(".4"));
+
+  var colorScale = d3.scaleLinear()
+                      .domain([minYear, maxYear])
+                      .range(['red', 'blue']);
+  svg.append("g")
+      .attr("class", "axis")
+      .attr("transform", "translate(0," + (height - padding) + ")" )
+      .call(timeAxis);
+
+  var simulation = d3.forceSimulation()
+    .velocityDecay(0.2)
+    .force("attract", d3.forceManyBody().strength(80)) // attract nodes to each other
+    .force("collide", d3.forceCollide().radius(function(d) {return refugeeScale(d.refugees) + 0.5;}))
+    .force("center", d3.forceCenter(width / 2, height / 2));
+    // .alphaDecay() controls decay of energy in simulation
+
+  simulation.stop() // simulations start automatically in D3 v4
+
+  // var year = svg.selectAll("text")
+  //               .data(dataset)
+  //               .enter()
+  //               .append("text")
+  //               .attr("x", width/2)
+  //               .attr("y", width/100)
+  var year = svg.append("text")
+      .attr("x", width/2 - 200)
+      .attr("y", 100)
+      .attr("class", "label")
+      .text("Refugees in America: 1988 to 2017");
+
+  var circle = svg.selectAll("circle")
+                  .data(dataset)
+                  .enter()
+                  .append("circle")
+                  .attr("class", "nodes")
+                  .attr("cx", 0)
+                  .attr("cy", (height/2) + padding)
+                  .attr("fill", function(d) {
+                    return colorScale(d.year);
+                  })
+                  .attr("r", 0);
+
+  var totalTime = 5000;
+  circle.transition()
+        .duration(totalTime)
+        .delay(function(d, i) {
+          return parseInt(i * totalTime/dataset.length);
+        })
+        .attr("r", function(d) {
+          return refugeeScale(d.refugees);
+        })
+        .attr("cx", function(d) {
+          return timeScale(d.year);
+        });
+
+  // for(var i = 0; i < dataset.length; i++) {
+
+  //   (function(i){
+
+  //   window.setTimeout(function(){
+  //     var item = dataset[i];
+  //     nodeList.push(item);
+  //     console.log(nodeList);
+  //     node = nodeGroup.data(nodeList);
+  //     nodeEnter = node.enter()
+  //                     .append("circle")
+  //                     // .attr("r", function(d) {refugeeScale(d.refugees)})
+  //                     .attr("r", function(d) {5})
+  //                     .attr("x", 0)
+  //                     .attr("y", 0);
+
+  //     node = nodeEnter.merge(node);
+  //     label.text(item.year);
+  //     simulation.nodes(node)
+  //               .on("tick", ticked);
+  //   }, i * 1000);
+
+  //   }(i));
+  //   // setTimeout(function() {
+      
+      
+  //   //   svg.append("circle")
+  //   //     .attr("x", 0)
+  //   //     .attr("y", 0)
+  //   //     .attr("r", refugeeScale(item.refugees))
+  //   //     .attr("opacity", 0.1);
+  //   // }, 2000);
+  // }
+
+  // var simulation = d3.forceSimulation(dataset)
+  //   .velocityDecay(0.2)
+  //   .force("attract", d3.forceManyBody().strength(80))
+  //   .force("collide", d3.forceCollide().radius(function(d) { return refugeeScale(d.refugees) + 0.5; }).iterations(2))
+  //   .on("tick", ticked);
+
+  // var simulation = d3.forceSimulation()
+  //   .velocityDecay(0.2)
+  //   .force("attract", d3.forceManyBody().strength(80))
+  //   .force("collide", d3.forceCollide())
+  //   .force("center", d3.forceCenter(width / 2, height / 2))
+  //   .on("tick", ticked);
+
+  // // simulation.stop()
+
+
+  // function ticked() {
+  //   context.clearRect(0, 0, width, height);
+  //   context.save();
+  //   context.translate(width / 2, height / 2);
+
+  //   context.beginPath();
+  //   dataset.forEach(function(d) {
+  //     context.moveTo(d.x + refugeeScale(d.refugees), d.y);
+  //     context.arc(d.x, d.y, refugeeScale(d.refugees), 0, tau);
+  //   });
+  //   context.fillStyle = "#ddd";
+  //   context.fill();
+  //   context.strokeStyle = "#333";
+  //   context.stroke();
+
+  //   context.restore();
+  // }
+
+});
+
+</script>
+</body>
+</html>

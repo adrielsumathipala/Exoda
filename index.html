@@ -1,0 +1,1128 @@
+<!-- Run Python Server: python -m SimpleHTTPServer 8080 &. -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- Required meta tags -->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<head>
+  <title>Exoda</title>
+  <link href="https://fonts.googleapis.com/css?family=Raleway:300,400,700" rel="stylesheet">
+</head>
+
+<body>
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-geo-projection/0.2.9/d3.geo.projection.min.js"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://d3js.org/topojson.v1.min.js"></script>
+<script src="https://unpkg.com/topojson@3"></script>
+<style type="text/css">
+	.svg-container {
+	    display: inline-block;
+	    position: relative;
+	    width: 100%;
+	    padding-bottom: 100%; /* aspect ratio */
+	    vertical-align: top;
+	    overflow: hidden;
+	}
+	.svg-content-responsive {
+	    display: inline-block;
+	    position: absolute;
+	    top: 10px;
+	    left: 0;
+	}
+  rect {
+    pointer-events: all;
+  }
+
+  .feature {
+    fill: #ccc;
+    cursor: pointer;
+  }
+
+  .feature.active {
+    fill: orange;
+  }
+
+  .title {
+    font-family: sans-serif;
+    font-weight: bold;
+    font-size: 45px;
+  }
+
+  .subtitle {
+    font-family: sans-serif;
+    font-size: 15px;
+  }
+
+  .statistic {
+    font-family: sans-serif;
+    font-size: 35px;
+    font-weight: bold;
+  }
+
+  .axis {
+    font-size: 10px;
+  }
+  .axis path,
+  .axis line {
+    fill: none;
+    stroke: slategray;
+    shape-rendering: crispEdges;
+  }
+
+  .chartline {
+    stroke: blue;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+    fill: none;
+  }
+
+  .exoda {
+    font-family: 'Raleway', sans-serif;
+    font-size: 8.0rem;
+  }
+
+  .intro {
+    font-family: 'Raleway', sans-serif;
+    font-size: 2.4rem;
+    font-weight: bold;
+  }
+
+  .d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 2px;
+}
+
+/* Creates a small triangle extender for the tooltip */
+.d3-tip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.8);
+  margin: -100px 0 0 0;
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+}
+
+.label {
+  font-family: sans-serif;
+  font-size: 30px;
+  font-weight: bold;
+  fill: #636363;
+}
+/* Style northward tooltips differently */
+.d3-tip.n:after {
+  margin: -100px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+.small{
+  font-family: sans-serif;
+  font-size: 10px;
+}
+
+.line { 
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+</style>
+<!-- <div id="map" style="background:#737373"></div> -->
+<div class="container-fluid">
+  <div class="row">
+    <div class = "col-5">
+      <div id="overview"></div>
+    </div>
+    <div class = "col-7">
+      <div id="map"></div> 
+    </div>
+  </div>
+  <div class="row ">
+    <div class="col-4">
+     <div id="asylum"></div>
+    </div>
+    <div class="col-4">
+      <div id="detail"></div>
+    </div>
+    <div class = "col-4">
+      <div id="refugee"></div>
+    </div>
+  </div>
+</div>
+<script>
+// var width = $(window).width();
+// var height = $(window).height();
+
+TOTAL_DURATION = 2000;
+TOTAL_DELAY = 100;
+var columnNames = ["F:Unknown", "Female0-4", "Female5-17", "Female18-59", "Female60+", "M:Unknown", "Male0-4", "Male5-17", "Male18-59", "Male60+"];
+var prettyNames = ["Females of Unknown Age", "Females Ages 0-4", "Female Ages 5-17", "Females Ages 18-59", "Females Ages 60+", "Males of Unknown Age", "Males Ages 0-4", "Males Ages 5-17", "Males Ages 18-59", "Males Ages 60+"];
+var cleanNames = ["F:Age?", "F:0-4", "F:5-17", "F:18-59", "F:60+", "M:Age?", "M:0-4", "M:5-17", "M:18-59", "M:60+"]
+
+var barColor = ["#FBC1FB","#FEA5FE", "#FE94FE", "#FB76FB", "#FA48FA", "#B7D8FE", "#92C5FE", "#76B6FE", "#4EA0FE", "#288CFE"];
+var refugeeColorScale = d3.scale.linear()
+                          .domain([0, 4])
+                          .interpolate(d3.interpolateHcl)
+                          .range([d3.rgb("#3A1C71"), d3.rgb("#D76D77")]);
+var asylumColorScale = d3.scale.linear()
+                          .domain([0,4])
+                          .range(["#000046", "#1CB5E0"]);
+
+var inboundColor = d3.scale.linear()
+                          .range(["#23ff3c", "#0c5114"]);
+
+var outboundColor = d3.scale.linear()
+                          .range(["#ff0000", "#680000"]);
+
+var active = d3.select(null);
+
+var legend_square_size = 10;
+
+var zoom = d3.behavior.zoom()
+    .translate ([0, 0])
+    .scale (1.0)
+    .scaleExtent([0.75, 3.5])
+    .on("zoom", zoomed);
+
+var projection = d3.geo.eckert3().center([50, -20]);
+
+var svg = d3.select("#map")
+	 // .classed("svg-container", true) //container class to make it responsive
+	 .append("svg")
+    .attr("preserveAspectRatio", "xMinYMin meet")
+    .attr("viewBox", "0 0 600 400")
+    //class to make it responsive
+    .classed("svg-content-responsive", true)
+
+var heightString = svg.style("height");
+var overHeight = heightString.length > 2 ? Number( heightString.substring( 0, heightString.length - 2 ) ) : 0 ;
+var overWidth = d3.select("#overview").node().getBoundingClientRect().width;
+
+// var overHeight = 600;
+// var overWidth = 400;
+var refugeeChartHeight = 190;
+var chartPadding = 60;
+var refugeeChartWidth = overWidth - 2*chartPadding;
+var topChartPadding = 200;
+var bottomShift = 350;
+
+var detail = d3.select("#detail")
+                  // .classed("svg-container", true) //container class to make it responsive
+                  .append("svg")
+                  // .attr("preserveAspectRatio", "xMinYMin meet")
+                  .attr("viewBox", "0 0 600 700")
+                  .classed("svg-content-responsive", true);
+                  // .append("g");
+
+var detailTitle = detail.append("text")
+      .attr("x", 80)
+      .attr("y", refugeeChartHeight + chartPadding + bottomShift)
+      .text("Distribution of Persons of Concern by Age and Gender")
+      .attr("class", "subtitle")
+      .attr("opacity", 0);
+var detailSubTitle = detail.append("text")
+      .attr("x", 190)
+      .attr("y", refugeeChartHeight + chartPadding + 20 + bottomShift)
+      .text("\"Age?\" means age is unknown")
+      .attr("class", "small")
+      .attr("opacity", 0);
+
+var asylumSVG = d3.select("#asylum")
+                  // .classed("svg-container", true) //container class to make it responsive
+                  .append("svg")
+                  // .attr("preserveAspectRatio", "xMinYMin meet")
+                  .attr("viewBox", "0 0 600 700")
+                  .classed("svg-content-responsive", true);
+
+var refugeeSVG = d3.select("#refugee")
+                  // .classed("svg-container", true) //container class to make it responsive
+                  .append("svg")
+                  // .attr("preserveAspectRatio", "xMinYMin meet")
+                  .attr("viewBox", "0 0 600 700")
+                  .classed("svg-content-responsive", true);
+
+var spaceBetween = 100;
+var detailWidth = 600;
+var initialHeight = 75;
+var shiftStats = 50;
+// Inbound Statistic:
+var inboundLabel = asylumSVG.append("text")
+                    .attr("x", detailWidth/2 - 120 - shiftStats)
+                    .attr("y", 25)
+                    .attr("opacity", 0)
+                    .text("Inbound Refugees:")
+                    .attr("class", "label");
+
+
+var inBoundStat = asylumSVG.append("text")
+                              .attr("x", 70)
+                              .attr("y", initialHeight)
+                              .attr("opacity", 0)
+                              .attr("class", "statistic");
+
+
+// Outbound Statistic:
+var outboundLabel = asylumSVG.append("text")
+                    .attr("x", detailWidth/2 - 130 - shiftStats)
+                    .attr("y", 25 + spaceBetween)
+                    .attr("opacity", 0)
+                    .text("Outbound Refugees:")
+                    .attr("class", "label");
+
+var outboundStat = asylumSVG.append("text")
+                              .attr("x", 70)
+                              .attr("y", initialHeight + spaceBetween)
+                              .text("test2")
+                              .attr("opacity", 0)
+                              .attr("class", "statistic");
+
+// Net Migration:
+var netLabel = asylumSVG.append("text")
+                    .attr("x", detailWidth/2 - 100 - shiftStats)
+                    .attr("y", 25 + spaceBetween*2)
+                    .attr("opacity", 0)
+                    .text("Net Migration:")
+                    .attr("class", "label");
+
+var netStat = asylumSVG.append("text")
+                              .attr("x", 70)
+                              .attr("y", initialHeight + 2*spaceBetween)
+                              .attr("opacity", 0)
+                              .attr("class", "statistic");
+
+// Inbound/Outbound Refugees vs. Time Charts:
+var refugeeSVGTitle = refugeeSVG.append("text")
+      .attr("x", 130)
+      .attr("y", refugeeChartHeight + chartPadding - 10 + bottomShift)
+      .text("Top Five Destinations by Outbound Refugees")
+      .attr("class", "subtitle")
+      .attr("opacity", 0);
+var asylumSVGTitle = asylumSVG.append("text")
+      .attr("x", 140)
+      .attr("y", refugeeChartHeight + chartPadding - 10 + bottomShift)
+      .text("Top Five Sources of Incoming Refugees")
+      .attr("class", "subtitle")
+      .attr("opacity", 0);
+
+var inOutBoutTitlePad = 150;
+
+var inboundTitle = detail.append("text")
+      .attr("x", inOutBoutTitlePad)
+      .attr("y", refugeeChartHeight + legend_square_size + 70)
+      .attr("class", "subtitle")
+      .attr("opacity", 0);
+
+var outboundTitle = refugeeSVG.append("text")
+      .attr("x", inOutBoutTitlePad)
+      .attr("y", refugeeChartHeight + legend_square_size + 70)
+      .attr("class", "subtitle")
+      .attr("opacity", 0);
+
+// var tip = d3.tip()
+//   .attr('class', 'd3-tip')
+//   .offset([-10, 0])
+//   .html(function(d) {
+//     return "<strong>Number of " + d.prettyNames +":</strong> <span style='color:red'>" + d.value + "</span>";
+//   });
+
+// detail.call(tip);
+
+var overview  = d3.select("#overview")
+                  .classed("svg-container", true) //container class to make it responsive
+                  .append("svg")
+                  .attr("preserveAspectRatio", "xMinYMin meet")
+                  // .attr("viewBox", "0 0 400 600")
+                  .attr("viewBox", "0 0 " + overWidth + " " + overHeight)
+                  //class to make it responsive
+                  .classed("svg-content-responsive", true)
+                  .style("display", "block");
+
+var exodaText = overview.append("text")
+                        .attr("class", "exoda")
+                        .attr("x", 30)
+                        .attr("y", 130)
+                        .text("Exoda");
+
+var introText1 = overview.append("text")
+                        .attr("class", "intro")
+                        .attr("x", 40)
+                        .attr("y", 450)
+                        .text("Select a country");
+var introText2 = overview.append("text")
+                        .attr("class", "intro")
+                        .attr("x", 40)
+                        .attr("y", 490)
+                        .text("to get started")
+                        .style("font-weight", "300");
+
+var introText3 = overview.append("text")
+                        .attr("class", "title")
+                        .attr("x", 40)
+                        .attr("y", 170)
+                        .text("Explore Global Migration and Refugee Data")
+                        .attr("class", "intro")
+                        .style("font-size", "1.2rem")
+                        .style("font-weight", "300");
+
+var title = overview.append("text")
+                    .attr("class", "title")
+                    .attr("x", 10)
+                    .attr("y", 50);
+
+var refugeeTitle = overview.append("text")
+                    .attr("class", "subtitle")
+                    .attr("x", 10)
+                    .attr("y", 100);
+
+
+var chartTitle = overview.append("text")
+                          .attr("class", "subtitle")
+                          .attr("x", 10)
+                          .attr("y", 180);
+
+var refugeeStat = overview.append("text")
+                    .attr("class", "statistic")
+                    .attr("x", 110)
+                    .attr("y", 150);
+
+var refugeeLine = overview.append("path")
+                          .attr("class", "chartline");
+
+var xAxisOverview = overview.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + (topChartPadding + refugeeChartHeight) + ")");
+
+var yAxisOverview = overview.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + "," + topChartPadding + ")");
+
+var xAxisBarSVG = detail.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + (refugeeChartHeight + bottomShift) + ")");
+var yAxisBarSVG = detail.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + "," + bottomShift + ")");
+
+var xAxisRefugeeSVG = refugeeSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + (refugeeChartHeight + bottomShift) + ")");
+var yAxisRefugeeSVG = refugeeSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + "," + bottomShift + ")");
+
+var xAxisAsylumSVG = asylumSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + (refugeeChartHeight + bottomShift) + ")");
+var yAxisAsylumSVG = asylumSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + "," + bottomShift + ")");
+
+var xAxisInbound = detail.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + refugeeChartHeight + ")");
+var yAxisInbound = detail.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + ",0)");
+
+var xAxisOutbound = refugeeSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(0," + refugeeChartHeight + ")");
+var yAxisOutbound = refugeeSVG.append("g")
+                            .attr("class", "axis")
+                            .attr("transform", "translate(" + chartPadding + ",0)");
+
+var path = d3.geo.path()
+    .projection(projection);
+
+var parent = svg.append("g");
+var g = parent.append("g");
+
+var firstTime = true;
+var data;
+// load and display the World
+
+d3.json("refugee_world.json", function(error, topology) {
+    var world = topology.features;
+    var paths = g.selectAll("path")
+      .data(world)
+      .enter()
+      .append("path")
+      .attr("d", path)
+      .style("stroke", "#cdd5d4")
+      .style("fill", "#ffffff")
+      .style("stroke-width", "0.25px")
+      .on("mouseover", mouseover)
+      .on("mouseout", mouseout)
+      .on("click", clicked)
+      .attr("id", function(d) {
+        return d.properties.brk_a3;
+      });
+
+    g.selectAll("circle")
+      .data(world)
+      .enter()
+      .append("circle")
+      .attr("r", function(d) {
+        var area = 10000 * d3.geo.area(d);
+        if(area < 1) {
+          return 0.3;
+        }
+        else {
+          return 1.0;
+        }
+      })
+      .attr("transform", function(d) {
+        var t = projection(d3.geo.centroid(d))
+        return "translate(" + t + ")";
+      })
+      .style("fill", "red")
+      .on("mouseover", function(d) {
+        d3.select("#" + d.properties.brk_a3)
+          .style("stroke", "8FD6FE")
+          .style("stroke-width", "0.5px")
+          .style("fill", "#ccf5ff");
+      })
+      .on("mouseout", function(d) {
+        d3.select("#" + d.properties.brk_a3)
+          .style("stroke", "#cdd5d4")
+          .style("fill", "#ffffff")
+          .style("stroke-width", "0.25px");
+      })
+      .on("click", clicked);    
+});
+
+function mouseover() {
+  // console.log(d3.select(this));
+  d3.select(this)
+          .style("stroke", "8FD6FE")
+          .style("stroke-width", "0.5px")
+          .style("fill", "#ccf5ff");
+};
+
+function mouseout() {
+  d3.select(this)
+          .style("stroke", "#cdd5d4")
+          .style("fill", "#ffffff")
+          .style("stroke-width", "0.25px")
+};
+
+var statFormat = d3.format(",");
+
+function zoomed(){
+  // g.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+  g.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+};
+
+STAT_TOTAL_CHANGES = 100;
+var format = d3.format(",d");
+
+var bars, refugeeBars, asylumBars, outLines, inLines;
+function clicked(d) {
+
+  console.log(d);
+
+  outboundLabel
+    .transition()
+    .duration(1000)
+    .attr("opacity", 1);
+  inboundLabel
+    .transition()
+    .duration(1000)
+    .attr("opacity", 1);
+  netLabel
+    .transition()
+    .duration(1000)
+    .attr("opacity", 1);
+
+  inboundTitle
+    .transition()
+      .duration(1000)
+      .attr("opacity", 1)
+      .attr("x", inOutBoutTitlePad - (2 + d["properties"]["name"].length)*5)
+      .text("Top 5 Sources of Refugees to " + d["properties"]["name"]);
+
+  outboundTitle
+    .transition()
+      .duration(1000)
+      .attr("opacity", 1)
+      .attr("x", inOutBoutTitlePad + 30 - (2 + d["properties"]["name"].length)*5)
+      .text("Top 5 Destinations of Refugees from " + d["properties"]["name"]);
+
+  outboundStat
+    .attr("x", 275 - statFormat(d.outbound_sum).length*5 - shiftStats)
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("opacity", 1)
+      .text(statFormat(d.outbound_sum));
+
+  inBoundStat
+    .attr("x", 275 - statFormat(d.inbound_sum).length*5 - shiftStats)
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("opacity", 1)
+      .text(statFormat(d.inbound_sum));
+      
+  var diff = d.inbound_sum - d.outbound_sum;
+  netStat
+    .attr("x", 275 - statFormat(diff).length*5 - shiftStats)
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("opacity", 1)
+      .text(statFormat(diff))
+      .style("fill", function() {
+        if(diff < 0) {
+          return "#f2152b";
+        } else {
+          return "#1aed2b";
+        }
+      });
+
+  exodaText
+    .transition()
+      .duration(1000)
+      .attr("opacity", 0);
+  
+  introText1
+    .transition()
+      .duration(1000)
+      .attr("opacity", 0);
+  
+  introText2
+      .transition()
+        .duration(1000)
+        .attr("opacity", 0);
+
+  introText3
+        .transition()
+            .duration(1000)
+            .attr("opacity", 0);
+  
+  introText3.remove();
+  introText2.remove();
+  introText1.remove();
+
+  d3.select("path.chartline").remove();
+
+
+  refugeeStat.text("0")
+  var country = d.properties;
+  title.text(country.name);
+  refugeeTitle
+  .transition()
+    .delay(TOTAL_DELAY)
+    .text("Total UNHCR Persons of Concern from " + d.Year[0] + " to " + d.Year[(d.Year.length - 1)] + ":");
+
+  chartTitle
+  .transition()
+    .delay(TOTAL_DELAY)
+    .text("Persons of Concern Over Time:");
+  
+  var totalRefugee = 0;
+  for(var j = 0; j < d.total.length; j++) {
+    totalRefugee += d.total[j];
+  }
+  var format = d3.format(",d");
+
+
+  refugeeStat
+    .transition()
+      .ease("quadInOut")
+      .duration(TOTAL_DURATION)
+      .delay(TOTAL_DELAY)
+      .tween("text", function(d) {
+        var currentValue = +this.textContent;
+        if(isNaN(currentValue)) {
+          currentValue = 0;
+        }
+        var i = d3.interpolateRound(currentValue, totalRefugee);
+        return function(t) {
+          d3.select(this).text(format(i(t)));
+        };
+    });
+
+    var xScale = d3.scale.linear()
+                  .domain([d.Year[0], d.Year[(d.Year.length - 1)]])
+                  .range([chartPadding, (refugeeChartWidth - chartPadding)]);
+
+    var yScale = d3.scale.linear()
+                  .domain([d3.min(d.total), d3.max(d.total)])
+                  .range([refugeeChartHeight, 0]);
+
+    var numTick = parseInt(d.Year.length);
+    if(numTick > 5) {
+      numTick = 5;
+    }
+
+    var xAxis = d3.svg.axis()
+                  .orient("bottom")
+                  .scale(xScale)
+                  .ticks(5)
+                  .tickFormat(d3.format("d"));
+
+    var yAxis = d3.svg.axis()
+                  .orient("left")
+                  .ticks(5)
+                  .scale(yScale);
+    
+    var valueLine = d3.svg.line()
+                .x(function(d) {return xScale(d.Year);})
+                .y(function(d) {return yScale(d.total) + topChartPadding;});
+
+    lineData = [];
+
+    for(var i = 0; i < d.Year.length; i++) {
+      lineData.push({
+        Year: d.Year[i],
+        total: d.total[i]
+      });
+    }
+
+    var refugeeLine = overview.append("path")
+                          .attr("class", "chartline")
+                          .attr("d", valueLine(lineData));
+
+    var totalLength = refugeeLine.node().getTotalLength();
+
+    refugeeLine
+      .attr("stroke-dasharray", totalLength + " " + totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+          .duration(TOTAL_DURATION)
+          .delay(TOTAL_DELAY)
+          .ease("quadInOut")
+          .attr("stroke-dashoffset", 0);
+
+
+    xAxisOverview
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(xAxis);
+    yAxisOverview
+      .transition()
+        .duration(500)
+        .delay(TOTAL_DELAY)
+        .call(yAxis);
+
+  var demo = [];
+
+  var column;
+  for(var j = 0; j < columnNames.length; j++) {
+    column = d[columnNames[j]];
+    demo.push({label:columnNames[j], value:0, shortName:cleanNames[j], prettyNames:prettyNames[j]});
+    var max = d3.max(column);
+    if(max > 0){
+      for(var i = 0; i < column.length; i++) {
+        demo[(demo.length - 1)].value += d[columnNames[j]][i];
+      }
+    }
+  }
+  var xScaleBar = d3.scale.ordinal()
+              .domain(demo.map(function(d) {return d.shortName;}))
+              .rangeRoundBands([chartPadding, (detailWidth - 2*chartPadding)], .1);
+
+  var yScaleBar = d3.scale.linear()
+              .domain([0, d3.max(demo, function(d) {return d.value;})])
+              .range([refugeeChartHeight, 0]);
+
+  var xAxisBar = d3.svg.axis()
+                  .orient("bottom")
+                  .scale(xScaleBar);
+
+  var yAxisBar = d3.svg.axis()
+                .orient("left")
+                .ticks(5)
+                .scale(yScaleBar);
+
+
+  if(typeof bars != "undefined") {
+    bars.remove();
+  } else {
+    detailTitle
+      .transition()
+        .duration(1000)
+        .attr("opacity", 1);
+    detailSubTitle
+      .transition()
+        .duration(1000)
+        .attr("opacity", 1);
+  }
+
+
+  bars = detail.selectAll(".bar")
+    .data(demo)
+    .enter()
+    .append("rect")
+    .attr("x", function(d) {return xScaleBar(d.shortName);})
+    .attr("y", function(d) {return yScaleBar(d.value) + bottomShift;})
+    .attr("width", 0)
+    .attr("height", 0)
+    .attr("fill", function(d, i) {
+        return barColor[i];
+    })
+
+  bars
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("width", xScaleBar.rangeBand())
+      .attr("height", function(d) {return refugeeChartHeight - yScaleBar(d.value);});
+      
+    // .on('mouseover', tip.show)
+    // .on('mouseout', tip.hide);
+
+  xAxisBarSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(xAxisBar);
+  yAxisBarSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(yAxisBar);
+
+var asylumData = [];
+var refugeeData = [];
+
+for(var i = 0; i < d.outbound_countries.length; i++)  {
+  refugeeData.push({country: d.outbound_countries[i], num:d.outbound_num[i]});
+  asylumData.push({country: d.inbound_countries[i], num:d.inbound_num[i]});
+}
+
+// For out-bound refugee data:
+var xScaleBar = d3.scale.ordinal()
+              .domain(refugeeData.map(function(d) {return d.country;}))
+              .rangeRoundBands([chartPadding, (detailWidth - 2*chartPadding)], .1);
+
+var yScaleBar = d3.scale.linear()
+            .domain([0, d3.max(refugeeData, function(d) {return d.num;})])
+            .range([refugeeChartHeight, 0]);
+
+var xAxisBar = d3.svg.axis()
+                .orient("bottom")
+                .scale(xScaleBar);
+
+var yAxisBar = d3.svg.axis()
+              .orient("left")
+              .ticks(5)
+              .scale(yScaleBar);
+
+xAxisRefugeeSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(xAxisBar);
+yAxisRefugeeSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(yAxisBar);
+if(typeof refugeeBars != "undefined") {
+    refugeeBars.remove();
+  } else {
+    refugeeSVGTitle
+      .transition()
+        .duration(1000)
+        .attr("opacity", 1);
+  }
+
+  refugeeBars = refugeeSVG.selectAll(".bar")
+    .data(refugeeData)
+    .enter()
+    .append("rect")
+    .attr("x", function(d) {return xScaleBar(d.country);})
+    .attr("y", function(d) {return yScaleBar(d.num) + bottomShift;})
+    .attr("width", 0)
+    .attr("height", 0)
+    .attr("fill", function(d, i) {
+        return refugeeColorScale(i);
+    })
+
+  refugeeBars
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("width", xScaleBar.rangeBand())
+      .attr("height", function(d) {return refugeeChartHeight - yScaleBar(d.num);});
+  
+
+
+
+  // For Asylum-InBound Data:
+
+var xScaleBar = d3.scale.ordinal()
+              .domain(asylumData.map(function(d) {return d.country;}))
+              .rangeRoundBands([chartPadding, (detailWidth - 2*chartPadding)], .1);
+
+var yScaleBar = d3.scale.linear()
+            .domain([0, d3.max(asylumData, function(d) {return d.num;})])
+            .range([refugeeChartHeight, 0]);
+
+var xAxisBar = d3.svg.axis()
+                .orient("bottom")
+                .scale(xScaleBar);
+
+var yAxisBar = d3.svg.axis()
+              .orient("left")
+              .ticks(5)
+              .scale(yScaleBar);
+
+xAxisAsylumSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(xAxisBar);
+yAxisAsylumSVG
+    .transition()
+      .duration(500)
+      .delay(TOTAL_DELAY)
+      .call(yAxisBar);
+
+  if(typeof asylumBars != "undefined") {
+    asylumBars.remove();
+  } else {
+    asylumSVGTitle
+      .transition()
+        .duration(1000)
+        .attr("opacity", 1);
+  }
+
+  asylumBars = asylumSVG.selectAll(".bar")
+    .data(asylumData)
+    .enter()
+    .append("rect")
+    .attr("x", function(d) {return xScaleBar(d.country);})
+    .attr("y", function(d) {return yScaleBar(d.num) + bottomShift;})
+    .attr("width", 0)
+    .attr("height", 0)
+    .attr("fill", function(d, i) {
+        return asylumColorScale(i);
+    })
+
+  asylumBars
+    .transition()
+      .duration(TOTAL_DURATION)
+      .attr("width", xScaleBar.rangeBand())
+      .attr("height", function(d) {return refugeeChartHeight - yScaleBar(d.num);});
+
+  // For Inbound Refugee Data:
+  var xScaleBar = d3.scale.linear()
+              .domain([d.Year[0], d.Year[(d.Year.length - 1)]])
+              .range([chartPadding, (detailWidth - 2*chartPadding)]);
+
+  var yScaleBar = d3.scale.linear()
+              .domain([0, d.max_inbound])
+              .range([refugeeChartHeight, 10]);
+
+  var xAxisBar = d3.svg.axis()
+                  .orient("bottom")
+                  .scale(xScaleBar)
+                  .tickFormat(d3.format("d"));
+
+  var yAxisBar = d3.svg.axis()
+                .orient("left")
+                .ticks(8)
+                .scale(yScaleBar);
+
+  var data_tmp;
+  var data_clean = [];
+  for(var i = 0; i < d.annual_inbound.length; i++) {
+      var year = d.inbound_year[i];
+      var values = d.annual_inbound[i];
+      var new_data = []
+    for(var j = 0; j < values.length; j++) {
+      new_data.push({year: year[j], num: values[j]});
+    }
+    data_clean.push(new_data);
+  }
+
+  var valueline = d3.svg.line()
+                    .x(function(d) {
+                      return xScaleBar(d.year);
+                    })
+                    .y(function(d) {
+                      return yScaleBar(d.num);
+                    });
+
+  if(typeof inLines != "undefined") {
+    inLines.remove();
+  }
+  var totalLength = refugeeLine.node().getTotalLength();
+
+    refugeeLine
+      .attr("stroke-dasharray", totalLength + " " + totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+          .duration(TOTAL_DURATION)
+          .delay(TOTAL_DELAY)
+          .ease("quadInOut")
+          .attr("stroke-dashoffset", 0);
+
+  inLines = detail.append("g");
+  inboundColor.domain([0, (data_clean.length)]);
+  for(var i = 0; i < data_clean.length; i++) {
+    var linetmp = inLines.append("path")
+              .datum(data_clean[i])
+              .attr("class", "line")
+              .attr("d", valueline)
+              .attr("stroke", function() {
+                return inboundColor(i);
+              });
+    var totalLength = linetmp.node().getTotalLength();
+    linetmp.attr("stroke-dasharray", totalLength + " " + totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+          .duration(TOTAL_DURATION)
+          .delay(TOTAL_DELAY)
+          .ease("quadInOut")
+          .attr("stroke-dashoffset", 0);
+
+    inLines.append("rect")
+              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length))
+              .attr("y", refugeeChartHeight + 30)
+              .attr("width", legend_square_size)
+              .attr("height", legend_square_size)
+              .attr("fill", function() {
+                return inboundColor(i);
+              })
+
+    inLines.append("text")
+              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length) + legend_square_size + 5)
+              .attr("y", refugeeChartHeight + 38)
+              .text(d.inbound_countries[i])
+              .attr("font-size", "10px");
+  }
+
+  xAxisInbound
+      .transition()
+        .duration(500)
+        .delay(TOTAL_DELAY)
+        .call(xAxisBar);
+  yAxisInbound
+      .transition()
+        .duration(500)
+        .delay(TOTAL_DELAY)
+        .call(yAxisBar);
+
+
+  // For Outbound Refugee Data:
+  var xScaleBar = d3.scale.linear()
+              .domain([d.Year[0], d.Year[(d.Year.length - 1)]])
+              .range([chartPadding, (detailWidth - 2*chartPadding)]);
+
+  var yScaleBar = d3.scale.linear()
+              .domain([0, d.max_outbound])
+              .range([refugeeChartHeight, 10]);
+
+
+  var xAxisBar = d3.svg.axis()
+                  .orient("bottom")
+                  .scale(xScaleBar)
+                  .tickFormat(d3.format("d"));
+
+  var yAxisBar = d3.svg.axis()
+                .orient("left")
+                .ticks(8)
+                .scale(yScaleBar);
+  
+  var data_tmp;
+  var data_clean = [];
+  for(var i = 0; i < d.annual_outbound.length; i++) {
+      var year = d.outbound_year[i];
+      var values = d.annual_outbound[i];
+      var new_data = []
+    for(var j = 0; j < values.length; j++) {
+      new_data.push({year: year[j], num: values[j]});
+    }
+    data_clean.push(new_data);
+  }
+
+  var valueline = d3.svg.line()
+                    .x(function(d) {
+                      return xScaleBar(d.year);
+                    })
+                    .y(function(d) {
+                      return yScaleBar(d.num);
+                    });
+
+  if(typeof outLines != "undefined") {
+    outLines.remove();
+  } else {
+    // detailTitle
+    //   .transition()
+    //     .duration(1000)
+    //     .attr("opacity", 1);
+    // detailSubTitle
+    //   .transition()
+    //     .duration(1000)
+    //     .attr("opacity", 1);
+  }
+
+  outboundColor.domain([0, (data_clean.length - 1)]);
+  outLines = refugeeSVG.append("g");
+  for(var i = 0; i < data_clean.length; i++) {
+    var linetmp = outLines.append("path")
+              .datum(data_clean[i])
+              .attr("class", "line")
+              .attr("d", valueline)
+              .attr("stroke", function() {
+                return outboundColor(i);
+              });
+
+    var totalLength = linetmp.node().getTotalLength();
+    linetmp.attr("stroke-dasharray", totalLength + " " + totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+          .duration(TOTAL_DURATION)
+          .delay(TOTAL_DELAY)
+          .ease("quadInOut")
+          .attr("stroke-dashoffset", 0);
+
+    outLines.append("rect")
+              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length))
+              .attr("y", refugeeChartHeight + 30)
+              .attr("width", legend_square_size)
+              .attr("height", legend_square_size)
+              .attr("fill", function() {
+                return outboundColor(i);
+              })
+
+    outLines.append("text")
+              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length) + legend_square_size + 5)
+              .attr("y", refugeeChartHeight + 38)
+              .text(d.outbound_countries[i])
+              .attr("font-size", "10px");
+  }
+
+  xAxisOutbound
+      .transition()
+        .duration(500)
+        .delay(TOTAL_DELAY)
+        .call(xAxisBar);
+  yAxisOutbound
+      .transition()
+        .duration(500)
+        .delay(TOTAL_DELAY)
+        .call(yAxisBar);
+
+  data = d;
+
+}
+
+svg
+  .call(zoom)
+  .call(zoom.event);
+
+</script>
+</body>
+</html>
