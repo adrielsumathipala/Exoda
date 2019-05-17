@@ -621,9 +621,18 @@ function clicked(d) {
     .delay(TOTAL_DELAY)
     .text("Persons of Concern Over Time:");
   
+  // If no demographic data is avaliable, (i.e. sum = 0)
+  // use other UNHCR Persons of Concern Metric (total_no_demo)
+  var totalPersons;
+  if (d.total.reduce((partial_sum, a) => partial_sum + a,0) == 0) {
+    totalPersons = d["total_no_demo"];
+  } else {
+    totalPersons = d.total;
+  }
+
   var totalRefugee = 0;
-  for(var j = 0; j < d.total.length; j++) {
-    totalRefugee += d.total[j];
+  for(var j = 0; j < totalPersons.length; j++) {
+    totalRefugee += totalPersons[j];
   }
   var format = d3.format(",d");
 
@@ -649,7 +658,7 @@ function clicked(d) {
                   .range([chartPadding, (refugeeChartWidth - chartPadding)]);
 
     var yScale = d3.scale.linear()
-                  .domain([d3.min(d.total), d3.max(d.total)])
+                  .domain([d3.min(totalPersons), d3.max(totalPersons)])
                   .range([refugeeChartHeight, 0]);
 
     var numTick = parseInt(d.Year.length);
@@ -677,8 +686,12 @@ function clicked(d) {
     for(var i = 0; i < d.Year.length; i++) {
       lineData.push({
         Year: d.Year[i],
-        total: d.total[i]
+        total: totalPersons[i]
       });
+    }
+
+    if(typeof refugeeLine != "undefined") {
+      refugeeLine.remove();
     }
 
     var refugeeLine = overview.append("path")
@@ -963,6 +976,7 @@ yAxisAsylumSVG
 
   inLines = detail.append("g");
   inboundColor.domain([0, (data_clean.length)]);
+  var legendSpacing = chartPadding;
   for(var i = 0; i < data_clean.length; i++) {
     var linetmp = inLines.append("path")
               .datum(data_clean[i])
@@ -981,7 +995,8 @@ yAxisAsylumSVG
           .attr("stroke-dashoffset", 0);
 
     inLines.append("rect")
-              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length))
+              // .attr("x", chartPadding + i * (refugeeChartWidth/(data_clean.length + 1)))
+              .attr("x", legendSpacing)
               .attr("y", refugeeChartHeight + 30)
               .attr("width", legend_square_size)
               .attr("height", legend_square_size)
@@ -990,10 +1005,13 @@ yAxisAsylumSVG
               })
 
     inLines.append("text")
-              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length) + legend_square_size + 5)
+              // .attr("x", chartPadding + i * (refugeeChartWidth/(data_clean.length + 1)) + legend_square_size + 5)
+              .attr("x", legendSpacing + legend_square_size + 5)
               .attr("y", refugeeChartHeight + 38)
               .text(d.inbound_countries[i])
               .attr("font-size", "10px");
+
+    legendSpacing += 7*d.inbound_countries[i].length + 20;
   }
 
   xAxisInbound
@@ -1054,6 +1072,8 @@ yAxisAsylumSVG
 
   outboundColor.domain([0, (data_clean.length - 1)]);
   outLines = refugeeSVG.append("g");
+
+  var legendSpacing = chartPadding;
   for(var i = 0; i < data_clean.length; i++) {
     var linetmp = outLines.append("path")
               .datum(data_clean[i])
@@ -1073,7 +1093,7 @@ yAxisAsylumSVG
           .attr("stroke-dashoffset", 0);
 
     outLines.append("rect")
-              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length))
+              .attr("x", legendSpacing)
               .attr("y", refugeeChartHeight + 30)
               .attr("width", legend_square_size)
               .attr("height", legend_square_size)
@@ -1082,10 +1102,12 @@ yAxisAsylumSVG
               })
 
     outLines.append("text")
-              .attr("x", chartPadding + i * (refugeeChartWidth/data_clean.length) + legend_square_size + 5)
+              .attr("x", legendSpacing + legend_square_size + 5)
               .attr("y", refugeeChartHeight + 38)
               .text(d.outbound_countries[i])
               .attr("font-size", "10px");
+
+    legendSpacing += 7 * d.outbound_countries[i].length + 20;
   }
 
   xAxisOutbound
