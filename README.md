@@ -10,7 +10,7 @@ While there are many migration data sources online, few provide accurate data at
 
 I integrated and cleaned multiple public migration data sources to create a singular ground truth on human migration. I combined this data with what I hope is a powerful, useful, and intuitive set of visual tools to explore the myriad nuances of human movement. Happy searching and feel free to drop me a line with any feedback!
 
-## Data Analysis and Viz Stack Used:
+## Data Analysis and Visualization Stack:
 
 **Data Analysis:**
 
